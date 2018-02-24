@@ -1,28 +1,42 @@
 #!/usr/bin/python
 
+import sys
+import json
+import config
+
 import coloredlogs
 import logging
-import sys
 import pychromecast
+from logging.handlers import SysLogHandler
 from time import sleep
 from threading import Thread
-import json
 import paho.mqtt.client as mqtt
 
-#loglevel = [logging.INFO,'INFO']
-loglevel = [logging.DEBUG,'DEBUG']
+#################################
+# LOGOWANIE
+#################################
+
+if config.IS_DEBUG:
+    loglevel = [logging.DEBUG,'DEBUG']
+else:
+    loglevel = [logging.INFO,'INFO']
+
 
 logging.basicConfig(level=loglevel[0], format='%(asctime)s -- %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=loglevel[1], logger=logger)
 
-server = 'rudy.at.hskrk.pl'
-sleepTime = 2
-deadFrame = json.dumps({"online": False, "data": None})
-chromecasts = [
-	{	'name': 'music', 'ip': '10.12.10.10','isAlive': False,'castObject': None	},
-	{	'name': 'video', 'ip': '10.12.10.11','isAlive': False,'castObject': None	}
-]
+# SYSLOG
+syslog = SysLogHandler(address='/dev/log', facility='user')
+formatter = logging.Formatter('%(name)s: %(levelname)s %(module)s %(message)r')
+syslog.setFormatter(formatter)
+syslog.setLevel(logging.WARNING)
+
+logger.addHandler(syslog)
+
+
+#################################
 
 def on_connect(client, userdata, flags, rc):
     logger.info('Connected with result code ' + str(rc))
@@ -38,11 +52,11 @@ def get_cc_data(cast,what):
 	cast.disconnect()
     except:
         logger.error(sys.exc_info())
-	return deadFrame
+	return json.dumps(config.DEAD_FRAME)
 
 def on_message_volume(mqcl, obj, msg):
     logger.debug('Received ' + msg.payload + ' on ' + msg.topic)
-    device = [cast for cast in chromecasts if cast['name'] == msg.topic.split('/')[0]][0]
+    device = [cast for cast in config.CHROMECAST_LIST if cast['name'] == msg.topic.split('/')[0]][0]
     if device['isAlive'] == True :
         if msg.payload.isdigit() and (float(msg.payload) >= 0 and float(msg.payload) <= 100 ) :
             device['castObject'].set_volume(float(msg.payload)/100)
@@ -55,7 +69,7 @@ def on_message_volume(mqcl, obj, msg):
 
 def on_message_pause(mqcl, obj, msg):
     logger.debug('Received ' + msg.payload + ' on ' + msg.topic)
-    device = [cast for cast in chromecasts if cast['name'] == msg.topic.split('/')[0]][0]
+    device = [cast for cast in config.CHROMECAST_LIST if cast['name'] == msg.topic.split('/')[0]][0]
     if device['isAlive'] == True :
 	if msg.payload == 'pause':
             device['castObject'].media_controller.pause()
@@ -74,9 +88,9 @@ def do_all(mqcl,casts):
 		logger.debug('Sent '+ i['name'] + ' media packet')
 		mqcl.publish(i['name'] +'/chromecast/volume', float(i['castObject'].status.volume_level)*100, retain=True)
 	else:
-	        mqcl.publish(i['name'] +'/chromecast/status',deadFrame, retain=True)
+	        mqcl.publish(i['name'] +'/chromecast/status',json.dumps(config.DEAD_FRAME), retain=True)
 		logger.debug('Sent '+ i['name'] + ' dead status packet')
-	        mqcl.publish(i['name'] +'/chromecast/playing',deadFrame, retain=True)
+	        mqcl.publish(i['name'] +'/chromecast/playing',json.dumps(config.DEAD_FRAME), retain=True)
 		logger.debug('Sent '+ i['name'] + ' dead media packet')
 
 
@@ -90,13 +104,13 @@ def connect_to(castItem):
 
 def execute():
     while True:
-        do_all(client,chromecasts)
-	logger.debug(' sleeping ' + str(sleepTime) + ' seconds')
-        sleep(sleepTime)
+        do_all(client,config.CHROMECAST_LIST)
+	logger.debug(' sleeping ' + str(config.SLEEP_TIME) + ' seconds')
+        sleep(config.SLEEP_TIME)
 
 def control_isAlive():
     while True:
-	for cast in chromecasts:
+	for cast in config.CHROMECAST_LIST:
 		if (cast['castObject']):
 			if(cast['castObject'].socket_client.is_connected):
 				cast['isAlive'] = True
@@ -113,7 +127,7 @@ def control_isAlive():
 			logger.debug('Trying to connect')
 			cast['castObject'] = connect_to(cast)
 			sleep(10)
-	sleep(sleepTime)
+	sleep(config.SLEEP_TIME)
 
 client = mqtt.Client()
 logger.info('Created MQTT client')
@@ -122,23 +136,23 @@ client.on_connect = on_connect
 logger.info('onConnect callback set')
 
 try:
-    client.connect(server, 1883, 60)
-    logger.info('Connected to ' + server + ' successfully')
+    client.connect(config.SERVER_ADDRESS, 1883, 60)
+    logger.info('Connected to ' + config.SERVER_ADDRESS + ' successfully')
 except:
-    logger.error('Connecting to ' + server + ' unsuccessful')
+    logger.error('Connecting to ' + config.SERVER_ADDRESS + ' unsuccessful')
     logger.error(sys.exc_info())
     
 
 client.loop_start()
 logger.info('Main MQTT loop started')
 
-for cast in chromecasts:
+for cast in config.CHROMECAST_LIST:
 	client.message_callback_add(cast['name']+'/chromecast/volume', on_message_volume)
 	logger.info('Volume callback for ' + cast['name'] + ' set') 
 	client.message_callback_add(cast['name']+'/chromecast/pause', on_message_pause)
 	logger.info('Pause callback for ' + cast['name'] + ' set') 
 	client.subscribe(cast['name']+"/#")
-	logger.info('Subscribed ' + cast['name'] + '/# topic on ' + server) 
+	logger.info('Subscribed ' + cast['name'] + '/# topic on ' + config.SERVER_ADDRESS) 
 
 Thread(target=control_isAlive).start()
 Thread(target=execute).start()
