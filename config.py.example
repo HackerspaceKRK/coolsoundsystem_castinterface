@@ -1,0 +1,5 @@
+IS_DEBUG = False
+SERVER_ADDRESS = 'server.address'
+CHROMECAST_LIST = [{'name': 'music', 'ip': '192.168.0.42','isAlive': False,'castObject': None}, {'name': 'video', 'ip': '192.168.1.42','isAlive': False,'castObject': None}]
+DEAD_FRAME = {"online": False, "data": None}
+SLEEP_TIME = 2
