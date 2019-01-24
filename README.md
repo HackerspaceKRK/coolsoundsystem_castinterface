@@ -5,7 +5,7 @@ Pythonowy demon do przesyłania informacji z i do hakerspejsowych urządzeń typ
 ## Obecne funkcje:
 - Przesyłanie na serwer MQTT w temacie `nazwa_urzadzenia/chromecast/status` statusu urządzenia
   - przykładowy dump:
-  ```
+```
         {
         	"data": {
         		"is_active_input": null,
@@ -26,10 +26,10 @@ Pythonowy demon do przesyłania informacji z i do hakerspejsowych urządzeń typ
         	},
         	"online": true
         }
-  ```
+```
 - Przesyłanie na serwer MQTT w temacie `nazwa_urzadzenia/chromecast/playing` informacji o aktualnie granym utworze (w miarę możliwości - niektóre aplikacje dają bardzo mało danych)
   - przykładowy dump:
-  ```
+```
       {
     	"data": {
     		"current_time": 0,
@@ -54,6 +54,6 @@ Pythonowy demon do przesyłania informacji z i do hakerspejsowych urządzeń typ
     	},
     	"online": true
     }
-  ```
+```
 - Wymianę informacji - ciągłe wysyłanie i nasłuchiwanie zmian w stanie w temacie `nazwa_urzadzenia/chromecast/volume` i w razie zmiany - ustawianie głośności urządzenia (_pozwala to na np. embedowanie suwaka zmiany głośności na stronie internetowej_)
 - Reagowanie na instrukcje `pause` i `play` na `nazwa_urzadzenia/chromecast/pause`
